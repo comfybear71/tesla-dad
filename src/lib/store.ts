@@ -18,6 +18,7 @@ import { DEFAULT_CONFIG } from "./defaults";
  *   tesla-dad:trades        -> Trade[]
  *   tesla-dad:snapshots     -> PriceSnapshot[]
  *   tesla-dad:lastSignalKey -> string (dedupe key so we don't spam Telegram)
+ *   tesla-dad:daily         -> DailyState (open/close summary sent flags)
  */
 
 const KEY = {
@@ -25,6 +26,7 @@ const KEY = {
   trades: "tesla-dad:trades",
   snapshots: "tesla-dad:snapshots",
   lastSignal: "tesla-dad:lastSignalKey",
+  daily: "tesla-dad:daily",
 };
 
 const MAX_SNAPSHOTS = 2000;
@@ -143,6 +145,21 @@ export async function getLastSignalKey(): Promise<string | null> {
 
 export async function setLastSignalKey(key: string): Promise<void> {
   await set(KEY.lastSignal, key);
+}
+
+/** Tracks whether the open/close Telegram summaries have been sent for a given ET day. */
+export interface DailyState {
+  date: string; // YYYY-MM-DD in ET
+  openSent: boolean;
+  closeSent: boolean;
+}
+
+export async function getDailyState(): Promise<DailyState | null> {
+  return get<DailyState>(KEY.daily);
+}
+
+export async function setDailyState(state: DailyState): Promise<void> {
+  await set(KEY.daily, state);
 }
 
 export const storageMode = useKv ? "vercel-kv" : "file";

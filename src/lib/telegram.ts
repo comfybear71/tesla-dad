@@ -1,4 +1,4 @@
-import type { Signal } from "./types";
+import type { Signal, Quote } from "./types";
 
 /**
  * Send a message via the Telegram Bot API.
@@ -66,5 +66,44 @@ export function formatSignalMessage(signal: Signal): string {
   }
 
   lines.push(``, `<i>Signal only — review and place the order in CMC.</i>`);
+  return lines.join("\n");
+}
+
+function signed(n: number, digits = 2): string {
+  return `${n > 0 ? "+" : ""}${n.toFixed(digits)}`;
+}
+
+/**
+ * Daily market open / close summary. Combines the live quote with the current
+ * signal so Dad gets a reliable morning and end-of-day snapshot even when no
+ * tier has triggered.
+ */
+export function formatMarketSummary(
+  kind: "open" | "close",
+  quote: Quote,
+  signal: Signal,
+): string {
+  const isOpen = kind === "open";
+  const icon = isOpen ? "🔔" : "🌙";
+  const heading = isOpen ? "TSLA — Market Open" : "TSLA — Market Close";
+  const headlinePrice = isOpen ? quote.open || quote.price : quote.price;
+  const action =
+    signal.action === "HOLD"
+      ? "No tier triggered — HOLD."
+      : `${signal.action}${signal.tierLabel ? ` (${signal.tierLabel})` : ""} signal active.`;
+
+  const lines = [
+    `${icon} <b>${heading}</b>`,
+    ``,
+    `${isOpen ? "Open" : "Close"}: <b>$${headlinePrice.toFixed(2)}</b>`,
+    `Change today: <b>${signed(quote.change)}</b> (${signed(quote.changePct)}%)`,
+    `Day range: $${quote.low.toFixed(2)} – $${quote.high.toFixed(2)}`,
+    `Prev close: $${quote.prevClose.toFixed(2)}`,
+    `Baseline: $${signal.baselinePrice.toFixed(2)} (${signed(signal.deviationPct)}% since)`,
+    ``,
+    `${ICON[signal.action]} ${action}`,
+    ``,
+    `<i>Signal only — review before trading in CMC.</i>`,
+  ];
   return lines.join("\n");
 }
