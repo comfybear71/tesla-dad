@@ -6,14 +6,17 @@
 
 ## Status
 
-🟢 **Prototype skeleton complete.** Builds clean, runs locally, deploys to
-Vercel. Awaiting the owner to add API keys in Vercel env vars, after which it
-goes fully live (real data only — no fakes).
+🟢 **LIVE in production.** Deployed on Vercel with real Finnhub data and working
+Telegram alerts. Real data only — no fakes.
 
 - **Repo:** `comfybear71/tesla-dad`
-- **Working branch:** `claude/tesla-dad-tracker-KSR7U`
-- **Production branch:** `master` (protected — never push directly)
-- **Live URL:** _not deployed yet_ — will be a `*.vercel.app` URL
+- **Production branch:** `master` (protected — never push directly; PR + squash)
+- **Live URL:** https://tesla-dad.vercel.app
+- **Env vars set:** `FINNHUB_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`,
+  Upstash Redis (`KV_REST_API_*`). Released tags: `v0.1.0`, `v0.1.2`.
+- **Vercel gotcha (resolved):** project was first imported when the repo was
+  empty, so Framework Preset locked to "Other" → every route 404'd despite green
+  builds. Fix: set Framework Preset = **Next.js** + one fresh deploy.
 
 ## What's built
 
@@ -30,8 +33,13 @@ goes fully live (real data only — no fakes).
   enforces $1,000 CMC minimum + fees. Baseline resets to trade price on each log.
 - **Price feed** (`lib/price.ts`): Finnhub → Alpha Vantage. **No mock fallback.**
 - **Vercel Cron** every 15 min → real quote → snapshot → Telegram (de-duped).
+- **Daily Telegram summaries** (`lib/market.ts` + cron): market **open** (first
+  run ≥ 09:30 ET) and **close** (first run ≥ 16:00 ET) summaries, once per ET
+  weekday, with price, day change, range, prev close, baseline deviation, and
+  the current signal. DST-safe via `America/New_York`. ⚠️ US market holidays are
+  NOT detected — on a holiday a flat summary may still send (minor; refine later).
 - **Telegram** sender + rich message formatting.
-- **Persistence**: Vercel KV (prod) / local JSON file (dev).
+- **Persistence**: Upstash Redis / Vercel KV (prod) / local JSON file (dev).
 - Root docs: `README.md`, `CLAUDE.md`, this file.
 
 ## Verified
@@ -71,4 +79,8 @@ goes fully live (real data only — no fakes).
   trades, settings, signal engine, Telegram, Vercel cron, PWA. Then, per owner's
   safety rules, **removed all demo/mock data** (deleted `/api/seed`, removed the
   mock price fallback) so the app uses real data only. Added `CLAUDE.md` +
-  `HANDOFF.md`. Opening first prototype PR.
+  `HANDOFF.md`. Merged PR #1 (prototype), #2 (Upstash env names), #3 (Next.js
+  14.2.35 security patch). Debugged Vercel 404 → Framework Preset was "Other";
+  set to Next.js → **went live** at tesla-dad.vercel.app with real Finnhub data;
+  Telegram confirmed working. Added **daily open/close Telegram summaries**
+  (PR #4). Homepage polls live price every 30s while open.
