@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background-color: #0a0a0a;
+}
+
+/* Subtle radial vignette like Tesla product pages */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(255, 255, 255, 0.06), transparent 60%),
+    radial-gradient(80% 60% at 50% 110%, rgba(227, 25, 55, 0.08), transparent 60%);
+  pointer-events: none;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-white/10 bg-carbon/80 p-5 shadow-glow backdrop-blur;
+  }
+  .label {
+    @apply text-xs font-medium uppercase tracking-[0.18em] text-white/40;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition active:scale-[0.98];
+  }
+  .btn-primary {
+    @apply btn bg-white text-ink hover:bg-white/90;
+  }
+  .btn-ghost {
+    @apply btn border border-white/15 bg-white/5 text-white hover:bg-white/10;
+  }
+  .input {
+    @apply w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-base text-white outline-none transition focus:border-white/30;
+  }
+}
+
+/* Hide number input spinners for a cleaner look */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
