@@ -69,7 +69,7 @@ export default function SettingsPage() {
           Deviations are measured from here. It resets automatically after each logged trade.
         </p>
         <NumberField label="Baseline price (USD)" value={config.baselinePrice} onChange={(v) => setField("baselinePrice", v)} step={0.01} />
-        {quote && (
+        {quote && quote.price > 0 && (
           <button
             type="button"
             onClick={() => setField("baselinePrice", quote.price)}

@@ -44,13 +44,14 @@ respects the **$1,000 CMC minimum** and includes estimated fees.
 
 ```bash
 npm install
-npm run dev          # http://localhost:3000
-# optional: seed demo chart + trades
-curl -X POST http://localhost:3000/api/seed
+cp .env.example .env.local   # add at least FINNHUB_API_KEY
+npm run dev                  # http://localhost:3000
 ```
 
-With **no API keys**, the app runs on realistic **demo price data** and stores
-everything in a local `.data/` JSON file — so you can click around immediately.
+**Real data only.** This app never fabricates prices. Without a market-data key
+(`FINNHUB_API_KEY` or `ALPHAVANTAGE_API_KEY`) the dashboard shows an honest
+"live price unavailable" state instead of fake numbers. Strategy/trade data is
+stored in a local `.data/` JSON file in dev (Vercel KV in production).
 
 ---
 
@@ -69,7 +70,7 @@ You get a free `*.vercel.app` URL. On the phone, open it and **Add to Home Scree
 
 | Variable | Purpose | Required |
 |----------|---------|----------|
-| `FINNHUB_API_KEY` | Live TSLA quotes ([finnhub.io](https://finnhub.io), free) | Recommended |
+| `FINNHUB_API_KEY` | Live TSLA quotes ([finnhub.io](https://finnhub.io), free) | **Required** |
 | `ALPHAVANTAGE_API_KEY` | Fallback quotes ([alphavantage.co](https://www.alphavantage.co)) | Optional |
 | `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather | For alerts |
 | `TELEGRAM_CHAT_ID` | Dad's chat id | For alerts |
@@ -102,8 +103,7 @@ src/
 │       ├── trades/         # get/record trades (updates holdings + baseline)
 │       ├── history/        # snapshots + trades for the chart
 │       ├── cron/check/     # Vercel Cron: check price, notify Telegram
-│       ├── test-telegram/  # send a test message
-│       └── seed/           # seed demo data
+│       └── test-telegram/  # send a test message
 ├── components/             # UI (SignalCard, TierLadder, PriceChart, …)
 └── lib/                    # types, store, price feed, signal logic, telegram
 ```

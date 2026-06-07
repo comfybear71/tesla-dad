@@ -25,7 +25,7 @@ export function PriceChart({
       <div className="flex h-56 flex-col items-center justify-center rounded-xl bg-black/30 text-center text-sm text-white/40">
         <p>Price history is being collected.</p>
         <p className="mt-1 text-xs text-white/30">
-          The chart fills in every 15 min once the app is deployed (or seed demo data).
+          The chart fills in from real quotes every 15 min once the price source is connected.
         </p>
       </div>
     );

@@ -14,12 +14,13 @@ export const dynamic = "force-dynamic";
 /**
  * Vercel Cron entrypoint (configured in vercel.json to run every 15 min).
  *
- * 1. Fetch the latest price and store a snapshot for the chart.
+ * 1. Fetch the latest real price and store a snapshot for the chart.
  * 2. Compute the current signal.
  * 3. If it's an actionable BUY/SELL we haven't already notified for, send Telegram.
  *
- * Optional: set CRON_SECRET to require an Authorization header (Vercel adds it
- * automatically to scheduled invocations).
+ * If no price source is configured, this no-ops with a clear message rather than
+ * inventing data. Optional: set CRON_SECRET to require an Authorization header
+ * (Vercel adds it automatically to scheduled invocations).
  */
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
@@ -31,7 +32,17 @@ export async function GET(req: Request) {
   }
 
   const config = await getConfig();
-  const quote = await getQuote(config.symbol);
+
+  let quote;
+  try {
+    quote = await getQuote(config.symbol);
+  } catch (e) {
+    return NextResponse.json(
+      { ok: false, code: "NO_PRICE_SOURCE", error: (e as Error).message },
+      { status: 503 },
+    );
+  }
+
   await addSnapshot({ ts: quote.ts, price: quote.price });
 
   const signal = computeSignal(config, quote.price);
