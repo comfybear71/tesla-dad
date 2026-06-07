@@ -6,10 +6,12 @@ import { DEFAULT_CONFIG } from "./defaults";
 /**
  * Pluggable persistence layer.
  *
- * In production (Vercel) it uses Vercel KV / Upstash Redis over REST when the
- * KV_REST_API_URL + KV_REST_API_TOKEN env vars are present. For local
- * development (or any host without KV configured) it falls back to a JSON file
- * under ./.data so the app runs with zero external setup.
+ * In production (Vercel) it uses Upstash Redis over REST when its env vars are
+ * present. It accepts BOTH naming schemes so it works whether the database was
+ * added as the legacy "Vercel KV" (KV_REST_API_URL / KV_REST_API_TOKEN) or via
+ * the newer Upstash marketplace integration (UPSTASH_REDIS_REST_URL /
+ * UPSTASH_REDIS_REST_TOKEN). For local development (or any host without it
+ * configured) it falls back to a JSON file under ./.data.
  *
  * Keys:
  *   tesla-dad:config        -> Config
@@ -27,8 +29,8 @@ const KEY = {
 
 const MAX_SNAPSHOTS = 2000;
 
-const kvUrl = process.env.KV_REST_API_URL;
-const kvToken = process.env.KV_REST_API_TOKEN;
+const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 const useKv = Boolean(kvUrl && kvToken);
 
 // ---------- Vercel KV (Upstash REST) ----------
