@@ -41,11 +41,11 @@ const ICON: Record<Signal["action"], string> = {
 };
 
 /** Format a signal into a rich Telegram message. */
-export function formatSignalMessage(signal: Signal): string {
+export function formatSignalMessage(signal: Signal, symbol: string): string {
   const icon = ICON[signal.action];
   const dev = signal.deviationPct > 0 ? `+${signal.deviationPct}` : `${signal.deviationPct}`;
   const lines = [
-    `${icon} <b>TSLA ${signal.action}${signal.tierLabel ? ` — ${signal.tierLabel}` : ""}</b>`,
+    `${icon} <b>${symbol} ${signal.action}${signal.tierLabel ? ` — ${signal.tierLabel}` : ""}</b>`,
     ``,
     `Price: <b>$${signal.price.toFixed(2)}</b>`,
     `Deviation: <b>${dev}%</b> vs baseline $${signal.baselinePrice.toFixed(2)}`,
@@ -85,7 +85,7 @@ export function formatMarketSummary(
 ): string {
   const isOpen = kind === "open";
   const icon = isOpen ? "🔔" : "🌙";
-  const heading = isOpen ? "TSLA — Market Open" : "TSLA — Market Close";
+  const heading = `${quote.symbol} — ${isOpen ? "Market Open" : "Market Close"}`;
   const headlinePrice = isOpen ? quote.open || quote.price : quote.price;
   const action =
     signal.action === "HOLD"

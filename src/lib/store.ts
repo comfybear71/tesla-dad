@@ -13,21 +13,24 @@ import { DEFAULT_CONFIG } from "./defaults";
  * UPSTASH_REDIS_REST_TOKEN). For local development (or any host without it
  * configured) it falls back to a JSON file under ./.data.
  *
- * Keys:
- *   tesla-dad:config        -> Config
- *   tesla-dad:trades        -> Trade[]
- *   tesla-dad:snapshots     -> PriceSnapshot[]
- *   tesla-dad:lastSignalKey -> string (dedupe key so we don't spam Telegram)
- *   tesla-dad:daily         -> DailyState (open/close summary sent flags)
+ * Keys (one set per tracked symbol):
+ *   tesla-dad:watchlist          -> string[] of tracked symbols
+ *   tesla-dad:config             -> Config        (TSLA — original keys)
+ *   tesla-dad:<SYM>:config       -> Config        (every other symbol)
+ *   ...same pattern for trades / snapshots / lastSignalKey / daily.
+ *
+ * TSLA keeps the original un-namespaced keys so production data written before
+ * multi-asset support is picked up without any migration.
  */
 
-const KEY = {
-  config: "tesla-dad:config",
-  trades: "tesla-dad:trades",
-  snapshots: "tesla-dad:snapshots",
-  lastSignal: "tesla-dad:lastSignalKey",
-  daily: "tesla-dad:daily",
-};
+type KeySuffix = "config" | "trades" | "snapshots" | "lastSignalKey" | "daily";
+
+const PREFIX = "tesla-dad";
+const WATCHLIST_KEY = `${PREFIX}:watchlist`;
+
+function keyFor(suffix: KeySuffix, symbol: string): string {
+  return symbol === "TSLA" ? `${PREFIX}:${suffix}` : `${PREFIX}:${symbol}:${suffix}`;
+}
 
 const MAX_SNAPSHOTS = 2000;
 
@@ -99,52 +102,88 @@ async function set<T>(key: string, value: T): Promise<void> {
   return useKv ? kvSet<T>(key, value) : fileSet<T>(key, value);
 }
 
-// ---------- Public API ----------
+// ---------- Symbols / watchlist ----------
 
-export async function getConfig(): Promise<Config> {
-  const stored = await get<Config>(KEY.config);
-  if (!stored) return DEFAULT_CONFIG;
+/** Uppercase + validate a user-supplied ticker. Returns null if it isn't one. */
+export function normalizeSymbol(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const s = raw.trim().toUpperCase();
+  return /^[A-Z][A-Z0-9.\-]{0,9}$/.test(s) ? s : null;
+}
+
+export async function getWatchlist(): Promise<string[]> {
+  const list = await get<string[]>(WATCHLIST_KEY);
+  return list && list.length > 0 ? list : ["TSLA"];
+}
+
+export async function saveWatchlist(symbols: string[]): Promise<void> {
+  await set(WATCHLIST_KEY, symbols);
+}
+
+/**
+ * Resolve a raw `?symbol=` query value to a tracked symbol. Falls back to the
+ * first watchlist entry, and never returns a symbol outside the watchlist (so
+ * arbitrary query strings can't create stray storage keys).
+ */
+export async function resolveSymbol(raw: string | null | undefined): Promise<string> {
+  const requested = normalizeSymbol(raw);
+  const watchlist = await getWatchlist();
+  return requested && watchlist.includes(requested) ? requested : watchlist[0];
+}
+
+// ---------- Per-symbol config / trades / snapshots ----------
+
+/** Defaults for a symbol: TSLA keeps Dad's seeded plan; new assets start empty. */
+export function defaultConfigFor(symbol: string): Config {
+  if (symbol === DEFAULT_CONFIG.symbol) return DEFAULT_CONFIG;
+  return { ...DEFAULT_CONFIG, symbol, baselinePrice: 0, sharesHeld: 0, cashUsd: 0 };
+}
+
+export async function getConfig(symbol: string): Promise<Config> {
+  const stored = await get<Config>(keyFor("config", symbol));
+  const def = defaultConfigFor(symbol);
+  if (!stored) return def;
   // Merge so newly-added fields always have a value.
-  return { ...DEFAULT_CONFIG, ...stored, tiers: stored.tiers ?? DEFAULT_CONFIG.tiers };
+  return { ...def, ...stored, symbol, tiers: stored.tiers ?? def.tiers };
 }
 
 export async function saveConfig(config: Config): Promise<void> {
-  await set(KEY.config, config);
+  await set(keyFor("config", config.symbol), config);
 }
 
-export async function getTrades(): Promise<Trade[]> {
-  return (await get<Trade[]>(KEY.trades)) ?? [];
+export async function getTrades(symbol: string): Promise<Trade[]> {
+  return (await get<Trade[]>(keyFor("trades", symbol))) ?? [];
 }
 
-export async function saveTrades(trades: Trade[]): Promise<void> {
-  await set(KEY.trades, trades);
+export async function saveTrades(symbol: string, trades: Trade[]): Promise<void> {
+  await set(keyFor("trades", symbol), trades);
 }
 
-export async function addTrade(trade: Trade): Promise<Trade[]> {
-  const trades = await getTrades();
+export async function addTrade(symbol: string, trade: Trade): Promise<Trade[]> {
+  const trades = await getTrades(symbol);
   trades.unshift(trade);
-  await saveTrades(trades);
+  await saveTrades(symbol, trades);
   return trades;
 }
 
-export async function getSnapshots(): Promise<PriceSnapshot[]> {
-  return (await get<PriceSnapshot[]>(KEY.snapshots)) ?? [];
+export async function getSnapshots(symbol: string): Promise<PriceSnapshot[]> {
+  return (await get<PriceSnapshot[]>(keyFor("snapshots", symbol))) ?? [];
 }
 
-export async function addSnapshot(snap: PriceSnapshot): Promise<void> {
-  const snaps = await getSnapshots();
+export async function addSnapshot(symbol: string, snap: PriceSnapshot): Promise<void> {
+  const snaps = await getSnapshots(symbol);
   snaps.push(snap);
   // Keep the array bounded.
   const trimmed = snaps.slice(-MAX_SNAPSHOTS);
-  await set(KEY.snapshots, trimmed);
+  await set(keyFor("snapshots", symbol), trimmed);
 }
 
-export async function getLastSignalKey(): Promise<string | null> {
-  return get<string>(KEY.lastSignal);
+export async function getLastSignalKey(symbol: string): Promise<string | null> {
+  return get<string>(keyFor("lastSignalKey", symbol));
 }
 
-export async function setLastSignalKey(key: string): Promise<void> {
-  await set(KEY.lastSignal, key);
+export async function setLastSignalKey(symbol: string, key: string): Promise<void> {
+  await set(keyFor("lastSignalKey", symbol), key);
 }
 
 /** Tracks whether the open/close Telegram summaries have been sent for a given ET day. */
@@ -154,12 +193,12 @@ export interface DailyState {
   closeSent: boolean;
 }
 
-export async function getDailyState(): Promise<DailyState | null> {
-  return get<DailyState>(KEY.daily);
+export async function getDailyState(symbol: string): Promise<DailyState | null> {
+  return get<DailyState>(keyFor("daily", symbol));
 }
 
-export async function setDailyState(state: DailyState): Promise<void> {
-  await set(KEY.daily, state);
+export async function setDailyState(symbol: string, state: DailyState): Promise<void> {
+  await set(keyFor("daily", symbol), state);
 }
 
 export const storageMode = useKv ? "vercel-kv" : "file";

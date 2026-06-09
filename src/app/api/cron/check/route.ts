@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   getConfig,
+  getWatchlist,
   addSnapshot,
   getLastSignalKey,
   setLastSignalKey,
@@ -16,9 +17,22 @@ import type { Quote, Signal } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
+interface SymbolResult {
+  symbol: string;
+  ok: boolean;
+  error?: string;
+  price?: number;
+  source?: string;
+  action?: Signal["action"];
+  tier?: string | null;
+  notified?: boolean;
+  summary?: "open" | "close" | null;
+}
+
 /**
  * Vercel Cron entrypoint (configured in vercel.json to run every 15 min).
  *
+ * For every symbol on the watchlist:
  * 1. Fetch the latest real price and store a snapshot for the chart.
  * 2. Send the daily market OPEN / CLOSE summary to Telegram (once each per ET day).
  * 3. Compute the current signal; if it's an actionable BUY/SELL we haven't
@@ -36,35 +50,52 @@ export async function GET(req: Request) {
     }
   }
 
-  const config = await getConfig();
+  const symbols = await getWatchlist();
+  const results: SymbolResult[] = [];
 
-  let quote: Quote;
-  try {
-    quote = await getQuote(config.symbol);
-  } catch (e) {
+  // Sequential on purpose: stays well inside free-tier API rate limits.
+  for (const symbol of symbols) {
+    results.push(await checkSymbol(symbol));
+  }
+
+  if (results.every((r) => !r.ok)) {
     return NextResponse.json(
-      { ok: false, code: "NO_PRICE_SOURCE", error: (e as Error).message },
+      { ok: false, code: "NO_PRICE_SOURCE", results },
       { status: 503 },
     );
   }
 
-  await addSnapshot({ ts: quote.ts, price: quote.price });
+  return NextResponse.json({ ok: true, results });
+}
+
+async function checkSymbol(symbol: string): Promise<SymbolResult> {
+  const config = await getConfig(symbol);
+
+  let quote: Quote;
+  try {
+    quote = await getQuote(symbol);
+  } catch (e) {
+    return { symbol, ok: false, error: (e as Error).message };
+  }
+
+  await addSnapshot(symbol, { ts: quote.ts, price: quote.price });
 
   const signal = computeSignal(config, quote.price);
 
   // --- Daily market open / close summaries ---
-  const summary = await maybeSendDailySummary(quote, signal);
+  const summary = await maybeSendDailySummary(symbol, quote, signal);
 
-  // --- Tier-crossing signal alert (de-duped) ---
+  // --- Tier-crossing signal alert (de-duped per symbol) ---
   const key = signalKey(signal);
-  const lastKey = await getLastSignalKey();
+  const lastKey = await getLastSignalKey(symbol);
   let notified = false;
   if (signal.action !== "HOLD" && key !== lastKey) {
-    notified = await sendTelegram(formatSignalMessage(signal));
+    notified = await sendTelegram(formatSignalMessage(signal, symbol));
   }
-  await setLastSignalKey(key);
+  await setLastSignalKey(symbol, key);
 
-  return NextResponse.json({
+  return {
+    symbol,
     ok: true,
     price: quote.price,
     source: quote.source,
@@ -72,15 +103,16 @@ export async function GET(req: Request) {
     tier: signal.tierLabel,
     notified,
     summary,
-  });
+  };
 }
 
 /**
  * Sends the open summary on the first run at/after 09:30 ET, and the close
- * summary on the first run at/after 16:00 ET, each at most once per ET weekday.
- * Returns which summary (if any) was sent.
+ * summary on the first run at/after 16:00 ET, each at most once per ET weekday
+ * per symbol. Returns which summary (if any) was sent.
  */
 async function maybeSendDailySummary(
+  symbol: string,
   quote: Quote,
   signal: Signal,
 ): Promise<"open" | "close" | null> {
@@ -88,7 +120,7 @@ async function maybeSendDailySummary(
   if (!ny.isWeekday) return null;
 
   // Reset the per-day flags when the ET date rolls over.
-  const existing = await getDailyState();
+  const existing = await getDailyState(symbol);
   const state: DailyState =
     existing && existing.date === ny.dateStr
       ? existing
@@ -99,7 +131,7 @@ async function maybeSendDailySummary(
     const sent = await sendTelegram(formatMarketSummary("close", quote, signal));
     state.openSent = true; // don't fire a late "open" after the close
     state.closeSent = true;
-    await setDailyState(state);
+    await setDailyState(symbol, state);
     return sent ? "close" : null;
   }
 
@@ -107,11 +139,11 @@ async function maybeSendDailySummary(
   if (ny.minutes >= MARKET_OPEN_MIN && ny.minutes < MARKET_CLOSE_MIN && !state.openSent) {
     const sent = await sendTelegram(formatMarketSummary("open", quote, signal));
     state.openSent = true;
-    await setDailyState(state);
+    await setDailyState(symbol, state);
     return sent ? "open" : null;
   }
 
   // Persist a freshly-rolled-over state even if nothing was sent yet.
-  if (!existing || existing.date !== ny.dateStr) await setDailyState(state);
+  if (!existing || existing.date !== ny.dateStr) await setDailyState(symbol, state);
   return null;
 }
