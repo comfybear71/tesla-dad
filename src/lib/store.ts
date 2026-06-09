@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
-import type { Config, Trade, PriceSnapshot } from "./types";
+import type { Config, Trade, PriceSnapshot, DailyBrief } from "./types";
 import { DEFAULT_CONFIG } from "./defaults";
 
 /**
@@ -199,6 +199,18 @@ export async function getDailyState(symbol: string): Promise<DailyState | null> 
 
 export async function setDailyState(symbol: string, state: DailyState): Promise<void> {
   await set(keyFor("daily", symbol), state);
+}
+
+// ---------- AI daily brief (one per ET market day, watchlist-wide) ----------
+
+const BRIEF_KEY = `${PREFIX}:brief`;
+
+export async function getDailyBrief(): Promise<DailyBrief | null> {
+  return get<DailyBrief>(BRIEF_KEY);
+}
+
+export async function saveDailyBrief(brief: DailyBrief): Promise<void> {
+  await set(BRIEF_KEY, brief);
 }
 
 export const storageMode = useKv ? "vercel-kv" : "file";

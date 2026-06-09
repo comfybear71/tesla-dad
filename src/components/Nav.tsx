@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const tabs = [
   { href: "/", label: "Home", icon: HomeIcon },
+  { href: "/news", label: "News", icon: NewsIcon },
   { href: "/trades", label: "Trades", icon: ChartIcon },
   { href: "/settings", label: "Settings", icon: GearIcon },
 ];
@@ -42,6 +43,16 @@ function HomeIcon({ active }: { active: boolean }) {
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8}>
       <path d="M3 10.5 12 3l9 7.5" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M5 9.5V21h14V9.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function NewsIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8}>
+      <path d="M4 5h13v14a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2V5Z" strokeLinejoin="round" />
+      <path d="M17 9h3v10a2 2 0 0 1-2 2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M7.5 9h6M7.5 12.5h6M7.5 16h4" strokeLinecap="round" />
     </svg>
   );
 }

@@ -9,13 +9,16 @@ import {
   setDailyState,
   type DailyState,
 } from "@/lib/store";
+import { getDailyBrief, saveDailyBrief } from "@/lib/store";
 import { getQuote } from "@/lib/price";
 import { computeSignal, signalKey } from "@/lib/signals";
 import { sendTelegram, formatSignalMessage, formatMarketSummary } from "@/lib/telegram";
+import { generateDailyBrief, formatBriefTelegram } from "@/lib/brief";
 import { nyTime, MARKET_OPEN_MIN, MARKET_CLOSE_MIN } from "@/lib/market";
 import type { Quote, Signal } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // multiple symbols + AI brief generation
 
 interface SymbolResult {
   symbol: string;
@@ -65,7 +68,32 @@ export async function GET(req: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true, results });
+  // AI daily brief: once per ET weekday, first run at/after the open.
+  const brief = await maybeGenerateDailyBrief();
+
+  return NextResponse.json({ ok: true, results, brief });
+}
+
+/**
+ * Generates and stores the AI daily brief on the first weekday run at/after
+ * 09:30 ET, then posts it to Telegram. Failures are logged but never break
+ * the price/signal cron. No-ops without ANTHROPIC_API_KEY.
+ */
+async function maybeGenerateDailyBrief(): Promise<boolean> {
+  if (!process.env.ANTHROPIC_API_KEY) return false;
+  const ny = nyTime();
+  if (!ny.isWeekday || ny.minutes < MARKET_OPEN_MIN) return false;
+  const existing = await getDailyBrief();
+  if (existing && existing.date === ny.dateStr) return false;
+  try {
+    const brief = await generateDailyBrief();
+    await saveDailyBrief(brief);
+    await sendTelegram(formatBriefTelegram(brief));
+    return true;
+  } catch (e) {
+    console.error("daily brief generation failed:", (e as Error).message);
+    return false;
+  }
 }
 
 async function checkSymbol(symbol: string): Promise<SymbolResult> {
