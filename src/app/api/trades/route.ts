@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
-import { addTrade, getTrades, getConfig, saveConfig } from "@/lib/store";
+import { addTrade, getTrades, getConfig, saveConfig, resolveSymbol } from "@/lib/store";
 import { estimateFee } from "@/lib/signals";
 import type { Trade } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  return NextResponse.json(await getTrades());
+export async function GET(req: Request) {
+  const symbol = await resolveSymbol(new URL(req.url).searchParams.get("symbol"));
+  return NextResponse.json(await getTrades(symbol));
 }
 
 /**
@@ -15,6 +16,7 @@ export async function GET() {
  * tier deviations is measured from here.
  */
 export async function POST(req: Request) {
+  const symbol = await resolveSymbol(new URL(req.url).searchParams.get("symbol"));
   const body = (await req.json()) as {
     action: "BUY" | "SELL";
     price: number;
@@ -23,7 +25,7 @@ export async function POST(req: Request) {
     note?: string;
   };
 
-  const config = await getConfig();
+  const config = await getConfig(symbol);
   const { action, price, shares } = body;
   if (!action || !price || !shares) {
     return NextResponse.json({ error: "action, price and shares are required" }, { status: 400 });
@@ -60,7 +62,7 @@ export async function POST(req: Request) {
     note: body.note,
   };
 
-  const trades = await addTrade(trade);
+  const trades = await addTrade(symbol, trade);
 
   // Update portfolio + reset baseline to the trade price.
   await saveConfig({

@@ -80,6 +80,37 @@ export interface PriceSnapshot {
   price: number;
 }
 
+/** A real news headline from the market-data provider. */
+export interface NewsItem {
+  id: string;
+  headline: string;
+  source: string;
+  url: string;
+  summary: string;
+  /** ISO timestamp of publication. */
+  datetime: string;
+}
+
+/** Per-asset section of the AI daily brief. */
+export interface AssetBrief {
+  symbol: string;
+  sentiment: "bullish" | "bearish" | "neutral" | "mixed";
+  /** Plain-English 2-3 sentence read on the asset. */
+  summary: string;
+  /** One concrete thing to keep an eye on. */
+  watchFor: string;
+}
+
+/** AI-generated morning brief across the whole watchlist. Context only — never a trade instruction. */
+export interface DailyBrief {
+  /** ET date (YYYY-MM-DD) the brief covers — one per market day. */
+  date: string;
+  generatedAt: string;
+  model: string;
+  marketSummary: string;
+  assets: AssetBrief[];
+}
+
 export interface Quote {
   symbol: string;
   price: number;

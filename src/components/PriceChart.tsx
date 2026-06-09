@@ -4,6 +4,7 @@ import {
   Area,
   AreaChart,
   ReferenceDot,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -14,9 +15,11 @@ import type { PriceSnapshot, Trade } from "@/lib/types";
 export function PriceChart({
   snapshots,
   trades,
+  baselinePrice,
 }: {
   snapshots: PriceSnapshot[];
   trades: Trade[];
+  baselinePrice?: number;
 }) {
   const data = snapshots.map((s) => ({ t: new Date(s.ts).getTime(), price: s.price }));
 
@@ -32,8 +35,9 @@ export function PriceChart({
   }
 
   const prices = data.map((d) => d.price);
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
+  const baseline = baselinePrice && baselinePrice > 0 ? baselinePrice : null;
+  const min = Math.min(...prices, baseline ?? Infinity);
+  const max = Math.max(...prices, baseline ?? -Infinity);
   const pad = Math.max(2, (max - min) * 0.1);
 
   return (
@@ -73,8 +77,21 @@ export function PriceChart({
               fontSize: 12,
             }}
             labelFormatter={(t) => new Date(t as number).toLocaleString("en-AU")}
-            formatter={(v: number) => [`$${v.toFixed(2)}`, "TSLA"]}
+            formatter={(v: number) => [`$${v.toFixed(2)}`, "price"]}
           />
+          {baseline && (
+            <ReferenceLine
+              y={baseline}
+              stroke="rgba(255,255,255,0.35)"
+              strokeDasharray="4 4"
+              label={{
+                value: "baseline",
+                position: "insideTopRight",
+                fill: "rgba(255,255,255,0.4)",
+                fontSize: 10,
+              }}
+            />
+          )}
           <Area type="monotone" dataKey="price" stroke="#e31937" strokeWidth={2} fill="url(#priceFill)" />
           {trades.map((tr) => (
             <ReferenceDot

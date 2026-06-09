@@ -18,6 +18,30 @@ Telegram alerts. Real data only — no fakes.
   empty, so Framework Preset locked to "Other" → every route 404'd despite green
   builds. Fix: set Framework Preset = **Next.js** + one fresh deploy.
 
+## In review (branch `claude/app-ui-improvements-vw5khx`, 2026-06-09)
+
+Pushed but NOT yet merged — verify on the Vercel preview before merging:
+
+- **Multi-asset watchlist** (owner-requested 2026-06-09): track any ticker with
+  a real feed alongside TSLA (NVDA works now; SpaceX/Anthropic/OpenAI addable
+  the day they list). Adding a ticker is validated against Finnhub — unlisted
+  companies are rejected honestly. Per-symbol config/trades/snapshots/baseline;
+  TSLA keeps its original Redis keys so **no prod data migration is needed**.
+  All APIs take `?symbol=`; cron loops the watchlist; Telegram names the symbol.
+  ⚠️ Cash is per-asset (a budget per stock) — see open decision 4.
+- **UI overhaul**: fixed the ladder baseline bug (label was drawn at 50%, not
+  the true zero point, so the needle could sit on the wrong side); dollar
+  trigger prices on the ladder; day low/high range bar; plain-English signal
+  card; symbol tabs on every page; mobile-friendly trade history; +/- stepper
+  inputs; day P&L on the portfolio card; pinch-zoom re-enabled.
+- **Market desk** (budju-style, owner-requested 2026-06-09): `/news` page with
+  real Finnhub headlines per symbol + an **AI daily brief** (Claude via
+  `@anthropic-ai/sdk`, structured JSON, `claude-opus-4-8`, override with
+  `BRIEF_MODEL`). Generated once per ET weekday by the existing cron on the
+  first run after 09:30 ET, stored in KV, posted to Telegram; manual refresh
+  button on the page. Context-only — never instructs trades. **Owner action:
+  add `ANTHROPIC_API_KEY` in Vercel to enable it.**
+
 ## What's built
 
 - Mobile-first **Next.js 14 PWA** with Tesla-style monochrome UI (installable
@@ -64,6 +88,10 @@ Telegram alerts. Real data only — no fakes.
 2. **Sell sizing.** Defaults to 3/4/5 shares so sells clear the $1,000 minimum
    (1–2 shares is too small at ~$340). Confirm acceptable.
 3. **Notification channel.** Telegram first (chosen). Add in-app Web Push later?
+4. **Per-asset cash.** With the multi-asset watchlist, `cashUsd` is a budget per
+   stock (labelled "USD cash for this stock" in Settings). Simplest and keeps
+   the signal engine untouched, but the same dollars could be allocated to two
+   stocks. Confirm acceptable, or move to a shared cash pool.
 
 ## Next steps / roadmap
 
@@ -84,3 +112,10 @@ Telegram alerts. Real data only — no fakes.
   set to Next.js → **went live** at tesla-dad.vercel.app with real Finnhub data;
   Telegram confirmed working. Added **daily open/close Telegram summaries**
   (PR #4). Homepage polls live price every 30s while open.
+- **2026-06-09** — Big feature session on branch `claude/app-ui-improvements-vw5khx`
+  (see "In review" above): multi-asset watchlist backend + UI (owner explicitly
+  authorized extending to new symbols; `signals.ts` math untouched), full UI
+  overhaul incl. the ladder baseline-position bug fix, and the budju-style
+  market desk (real news feed + AI daily brief). Build + typecheck green;
+  endpoints smoke-tested locally (watchlist CRUD, honest 503s without keys).
+  Next: owner reviews Vercel preview, adds `ANTHROPIC_API_KEY`, merges via PR.

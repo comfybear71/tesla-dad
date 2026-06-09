@@ -6,10 +6,12 @@
 
 ## What this is
 
-**Tesla Dad** is a sleek, mobile-first web app that tracks the Tesla (**TSLA**)
-share price and sends **buy/sell signals** to a phone (via Telegram) so an
-80-year-old investor doesn't have to watch the market. The long-term goal is to
-**accumulate TSLA shares over ~5 years** (and add SpaceX when it lists).
+**Tesla Dad** is a sleek, mobile-first web app that tracks share prices (TSLA
+first, plus any watchlist ticker covered by a real feed) and sends **buy/sell
+signals** to a phone (via Telegram) so an 80-year-old investor doesn't have to
+watch the market. The long-term goal is to **accumulate TSLA shares over ~5
+years** (and add SpaceX / Anthropic / OpenAI the day they list — the watchlist
+only accepts tickers a real price feed covers).
 
 It is a **signal tool only** — see the trading rules below.
 
@@ -51,23 +53,30 @@ https://github.com/comfybear71/Master/blob/master/SAFETY-RULES.md
 src/
 ├── app/
 │   ├── page.tsx          Dashboard: price, signal, tier ladder, portfolio
-│   ├── trades/page.tsx   Chart + log-a-trade form + history table
-│   ├── settings/page.tsx Edit baseline, holdings, fees, 3 tiers
-│   └── api/
+│   ├── news/page.tsx     Market desk: AI daily brief + real headlines
+│   ├── trades/page.tsx   Chart + log-a-trade form + history list
+│   ├── settings/page.tsx Watchlist + per-symbol baseline/holdings/fees/tiers
+│   └── api/              (symbol-scoped routes accept ?symbol=)
 │       ├── signal/       price + computed signal (503 if no source)
-│       ├── quote/        live TSLA quote (503 if no source)
-│       ├── config/       GET/POST strategy config
+│       ├── quote/        live quote (503 if no source)
+│       ├── config/       GET/POST per-symbol strategy config
 │       ├── trades/       GET/POST trades (updates holdings + resets baseline)
-│       ├── history/      snapshots + trades for the chart
-│       ├── cron/check/   Vercel Cron: real quote → snapshot → Telegram
+│       ├── history/      snapshots + trades + baseline for the chart
+│       ├── watchlist/    GET/POST/DELETE tracked tickers (real-feed-validated)
+│       ├── news/         real Finnhub company news (503 if no source)
+│       ├── brief/        GET stored AI daily brief / POST regenerate
+│       ├── cron/check/   Vercel Cron: per-symbol quote → snapshot → Telegram
 │       └── test-telegram/ send a test message
-├── components/           SignalCard, TierLadder, PriceChart, Nav, …
+├── components/           SignalCard, TierLadder, PriceChart, SymbolTabs, …
 └── lib/
     ├── types.ts          domain types
     ├── defaults.ts       default config + 3-tier ladder
-    ├── store.ts          Vercel KV / file persistence
+    ├── store.ts          per-symbol Vercel KV / file persistence + watchlist
     ├── price.ts          Finnhub → Alpha Vantage (NO mock fallback)
+    ├── news.ts           Finnhub company news (NO mock fallback)
+    ├── brief.ts          AI daily brief (Claude, context only, never trades)
     ├── signals.ts        tier logic (the core strategy)
+    ├── useWatchlist.ts   client hook: tracked symbols + active selection
     └── telegram.ts       Bot API sender + message formatting
 ```
 
@@ -91,10 +100,12 @@ each logged trade**. Defaults (editable in Settings):
 
 | Variable | Purpose | Required |
 |----------|---------|----------|
-| `FINNHUB_API_KEY` | Live TSLA quotes | **Yes** |
+| `FINNHUB_API_KEY` | Live quotes + company news | **Yes** |
 | `ALPHAVANTAGE_API_KEY` | Fallback quotes | Optional |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Phone alerts | For alerts |
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Vercel KV persistence | Prod |
+| `ANTHROPIC_API_KEY` | AI daily brief (News page + Telegram) | For the brief |
+| `BRIEF_MODEL` | Override brief model (default `claude-opus-4-8`) | Optional |
 | `CRON_SECRET` | Protect the cron endpoint | Optional |
 
 ## File structure convention (ecosystem)
