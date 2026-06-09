@@ -41,9 +41,14 @@ const config: Config = {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.5" },
         },
+        fadeUp: {
+          from: { opacity: "0.3", transform: "translateY(6px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         pulseSoft: "pulseSoft 2.4s ease-in-out infinite",
+        fadeUp: "fadeUp 0.45s ease-out both",
       },
     },
   },

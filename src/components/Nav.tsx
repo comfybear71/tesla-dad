@@ -20,10 +20,13 @@ export function Nav() {
             <Link
               key={href}
               href={href}
-              className={`flex flex-1 flex-col items-center gap-1 py-3 text-[11px] font-medium tracking-wide transition ${
-                active ? "text-white" : "text-white/40"
+              className={`relative flex flex-1 flex-col items-center gap-1 py-3 text-[11px] font-medium tracking-wide transition ${
+                active ? "text-white" : "text-white/40 hover:text-white/70"
               }`}
             >
+              {active && (
+                <span className="absolute top-0 h-0.5 w-10 rounded-full bg-white" />
+              )}
               <Icon active={active} />
               {label}
             </Link>

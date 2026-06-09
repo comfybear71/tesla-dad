@@ -3,6 +3,8 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PriceChart } from "@/components/PriceChart";
+import { SymbolTabs } from "@/components/SymbolTabs";
+import { useWatchlist } from "@/lib/useWatchlist";
 import { usd, shortDateTime } from "@/lib/format";
 import type { PriceSnapshot, Trade } from "@/lib/types";
 
@@ -16,8 +18,10 @@ export default function TradesPage() {
 
 function TradesInner() {
   const params = useSearchParams();
+  const { symbol, symbols, setSymbol } = useWatchlist(params.get("symbol"));
   const [snapshots, setSnapshots] = useState<PriceSnapshot[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [baselinePrice, setBaselinePrice] = useState(0);
 
   const [action, setAction] = useState<"BUY" | "SELL">((params.get("action") as "BUY" | "SELL") || "BUY");
   const [price, setPrice] = useState(params.get("price") ?? "");
@@ -27,22 +31,30 @@ function TradesInner() {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/history", { cache: "no-store" });
-    const json = (await res.json()) as { snapshots: PriceSnapshot[]; trades: Trade[] };
+    if (!symbol) return;
+    const res = await fetch(`/api/history?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" });
+    const json = (await res.json()) as {
+      snapshots: PriceSnapshot[];
+      trades: Trade[];
+      baselinePrice: number;
+    };
     setSnapshots(json.snapshots);
     setTrades(json.trades);
-  }, []);
+    setBaselinePrice(json.baselinePrice);
+  }, [symbol]);
 
   useEffect(() => {
+    setSnapshots([]);
+    setTrades([]);
     load();
   }, [load]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!price || !shares) return;
+    if (!price || !shares || !symbol) return;
     setSaving(true);
     try {
-      await fetch("/api/trades", {
+      await fetch(`/api/trades?symbol=${encodeURIComponent(symbol)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -62,22 +74,38 @@ function TradesInner() {
   }
 
   const totalShares = trades[0]?.sharesAfter;
+  const buys = trades.filter((t) => t.action === "BUY").length;
+  const sells = trades.length - buys;
 
   return (
     <main className="flex flex-col gap-5">
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-tight">Trade log</h1>
-        <span className="text-xs text-white/40">{trades.length} trades</span>
+        <span className="text-xs text-white/40">
+          {trades.length} trade{trades.length === 1 ? "" : "s"}
+        </span>
       </header>
 
+      <SymbolTabs symbols={symbols} active={symbol} onSelect={setSymbol} />
+
       <section className="card">
-        <p className="label mb-3">Price & trades</p>
-        <PriceChart snapshots={snapshots} trades={trades} />
+        <div className="mb-3 flex items-center justify-between">
+          <p className="label">Price & trades</p>
+          <div className="flex items-center gap-3 text-[10px] text-white/40">
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-signal-buy" /> buy
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-tesla-red" /> sell
+            </span>
+          </div>
+        </div>
+        <PriceChart snapshots={snapshots} trades={trades} baselinePrice={baselinePrice} />
       </section>
 
       {/* Log a trade */}
       <section className="card">
-        <p className="label mb-3">Log a trade</p>
+        <p className="label mb-3">Log a trade · {symbol || "…"}</p>
         <form onSubmit={submit} className="flex flex-col gap-3">
           <div className="grid grid-cols-2 gap-2">
             <button
@@ -115,49 +143,50 @@ function TradesInner() {
         </form>
       </section>
 
-      {/* Trade table */}
+      {/* Trade history */}
       <section className="card overflow-hidden p-0">
         <p className="label p-5 pb-3">History</p>
         {trades.length === 0 ? (
-          <p className="px-5 pb-6 text-sm text-white/40">No trades logged yet.</p>
+          <p className="px-5 pb-6 text-sm text-white/40">
+            No trades logged for {symbol || "this symbol"} yet.
+          </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-y border-white/10 text-left text-[11px] uppercase tracking-wider text-white/40">
-                  <th className="px-4 py-2 font-medium">Date</th>
-                  <th className="px-4 py-2 font-medium">Side</th>
-                  <th className="px-4 py-2 text-right font-medium">Price</th>
-                  <th className="px-4 py-2 text-right font-medium">Shares</th>
-                  <th className="px-4 py-2 text-right font-medium">Amount</th>
-                  <th className="px-4 py-2 text-right font-medium">Held</th>
-                </tr>
-              </thead>
-              <tbody>
-                {trades.map((t) => (
-                  <tr key={t.id} className="border-b border-white/5">
-                    <td className="px-4 py-3 text-white/60">{shortDateTime(t.ts)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${t.action === "BUY" ? "bg-signal-buy/15 text-signal-buy" : "bg-tesla-red/15 text-tesla-red"}`}>
-                        {t.action}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">{usd(t.price)}</td>
-                    <td className="px-4 py-3 text-right">{t.shares}</td>
-                    <td className="px-4 py-3 text-right">{usd(t.amountUsd, 0)}</td>
-                    <td className="px-4 py-3 text-right text-white/60">{t.sharesAfter}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ul className="divide-y divide-white/5">
+            {trades.map((t) => (
+              <li key={t.id} className="flex items-center justify-between gap-3 px-5 py-3.5">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                      t.action === "BUY" ? "bg-signal-buy/15 text-signal-buy" : "bg-tesla-red/15 text-tesla-red"
+                    }`}
+                  >
+                    {t.action}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium tabular-nums">
+                      {t.shares} sh @ {usd(t.price)}
+                    </p>
+                    <p className="truncate text-[11px] text-white/40">
+                      {shortDateTime(t.ts)}
+                      {t.tierLabel ? ` · ${t.tierLabel}` : ""}
+                      {t.note ? ` · ${t.note}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-sm font-semibold tabular-nums">{usd(t.amountUsd, 0)}</p>
+                  <p className="text-[11px] tabular-nums text-white/40">held {t.sharesAfter}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 
       {totalShares != null && (
         <p className="text-center text-xs text-white/40">
-          Now holding <span className="font-semibold text-white">{totalShares}</span> TSLA shares ·{" "}
-          {trades.filter((t) => t.action === "BUY").length} buys / {trades.filter((t) => t.action === "SELL").length} sells
+          Now holding <span className="font-semibold text-white">{totalShares}</span> {symbol} shares ·{" "}
+          {buys} buy{buys === 1 ? "" : "s"} / {sells} sell{sells === 1 ? "" : "s"}
         </p>
       )}
     </main>

@@ -20,11 +20,11 @@ export const metadata: Metadata = {
   },
 };
 
+// No maximumScale: pinch-zoom stays available (important for older eyes).
 export const viewport: Viewport = {
   themeColor: "#0a0a0a",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
