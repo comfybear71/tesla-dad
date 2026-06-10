@@ -6,32 +6,46 @@ import type { Signal, Quote } from "./types";
  * Setup (one-time):
  *   1. In Telegram, message @BotFather, send /newbot, follow the prompts.
  *   2. Copy the bot token into TELEGRAM_BOT_TOKEN.
- *   3. Start a chat with your new bot and send it any message.
- *   4. Visit https://api.telegram.org/bot<TOKEN>/getUpdates to find your chat id,
- *      put it in TELEGRAM_CHAT_ID.
+ *   3. Start a chat with your new bot and send it any message. (Each extra
+ *      recipient — e.g. Dad — must also open the bot and tap Start once;
+ *      bots cannot message someone first.)
+ *   4. Visit https://api.telegram.org/bot<TOKEN>/getUpdates to find each chat
+ *      id, and put them in TELEGRAM_CHAT_ID — comma-separated for multiple
+ *      recipients (e.g. "12345678,87654321"). A group chat id (negative
+ *      number) works too: add the bot to a family group and everyone sees
+ *      the alerts.
  *
- * Returns true if sent, false if not configured or the send failed.
+ * Returns true if at least one recipient got the message, false if not
+ * configured or every send failed.
  */
 export async function sendTelegram(text: string): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return false;
+  const chatIds = (process.env.TELEGRAM_CHAT_ID ?? "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (!token || chatIds.length === 0) return false;
 
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-      }),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
+  const results = await Promise.all(
+    chatIds.map(async (chatId) => {
+      try {
+        const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text,
+            parse_mode: "HTML",
+            disable_web_page_preview: true,
+          }),
+        });
+        return res.ok;
+      } catch {
+        return false;
+      }
+    }),
+  );
+  return results.some(Boolean);
 }
 
 const ICON: Record<Signal["action"], string> = {
