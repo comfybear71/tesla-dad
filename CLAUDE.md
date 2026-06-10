@@ -102,7 +102,7 @@ each logged trade**. Defaults (editable in Settings):
 |----------|---------|----------|
 | `FINNHUB_API_KEY` | Live quotes + company news | **Yes** |
 | `ALPHAVANTAGE_API_KEY` | Fallback quotes | Optional |
-| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Phone alerts | For alerts |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Phone alerts; chat id accepts a comma-separated list (or a group id) for multiple recipients | For alerts |
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Vercel KV persistence | Prod |
 | `ANTHROPIC_API_KEY` | AI daily brief (News page + Telegram) | For the brief |
 | `BRIEF_MODEL` | Override brief model (default `claude-opus-4-8`) | Optional |
