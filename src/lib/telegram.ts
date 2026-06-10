@@ -88,6 +88,29 @@ function signed(n: number, digits = 2): string {
 }
 
 /**
+ * Premarket gap alert: a watched stock is trading well away from its previous
+ * close before the bell. Sent at most once per symbol per ET day.
+ */
+export function formatGapAlert(quote: Quote, signal: Signal): string {
+  const up = quote.changePct >= 0;
+  const lines = [
+    `⚡️ <b>${quote.symbol} — Premarket gap ${up ? "UP" : "DOWN"} ${signed(quote.changePct)}%</b>`,
+    ``,
+    `Trading at <b>$${quote.price.toFixed(2)}</b> vs prev close $${quote.prevClose.toFixed(2)}, before the open.`,
+    `Baseline: $${signal.baselinePrice.toFixed(2)} (${signed(signal.deviationPct)}% since)`,
+    ``,
+    `${ICON[signal.action]} ${
+      signal.action === "HOLD"
+        ? "No tier triggered yet — watch the open."
+        : `${signal.action}${signal.tierLabel ? ` (${signal.tierLabel})` : ""} signal active.`
+    }`,
+    ``,
+    `<i>Signal only — review before trading in CMC.</i>`,
+  ];
+  return lines.join("\n");
+}
+
+/**
  * Daily market open / close summary. Combines the live quote with the current
  * signal so Dad gets a reliable morning and end-of-day snapshot even when no
  * tier has triggered.

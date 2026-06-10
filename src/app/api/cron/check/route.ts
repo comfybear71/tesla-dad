@@ -12,9 +12,20 @@ import {
 import { getDailyBrief, saveDailyBrief } from "@/lib/store";
 import { getQuote } from "@/lib/price";
 import { computeSignal, signalKey } from "@/lib/signals";
-import { sendTelegram, formatSignalMessage, formatMarketSummary } from "@/lib/telegram";
+import {
+  sendTelegram,
+  formatSignalMessage,
+  formatMarketSummary,
+  formatGapAlert,
+} from "@/lib/telegram";
 import { generateDailyBrief, formatBriefTelegram } from "@/lib/brief";
-import { nyTime, MARKET_OPEN_MIN, MARKET_CLOSE_MIN } from "@/lib/market";
+import {
+  nyTime,
+  MARKET_OPEN_MIN,
+  MARKET_CLOSE_MIN,
+  PREMARKET_GAP_MIN,
+  PREMARKET_BRIEF_MIN,
+} from "@/lib/market";
 import type { Quote, Signal } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +41,11 @@ interface SymbolResult {
   tier?: string | null;
   notified?: boolean;
   summary?: "open" | "close" | null;
+  gapAlert?: boolean;
 }
+
+/** Premarket move (vs prev close) that triggers a gap alert, in percent. */
+const GAP_ALERT_PCT = Math.abs(parseFloat(process.env.GAP_ALERT_PCT ?? "")) || 3;
 
 /**
  * Vercel Cron entrypoint (configured in vercel.json to run every 15 min).
@@ -68,7 +83,7 @@ export async function GET(req: Request) {
     );
   }
 
-  // AI daily brief: once per ET weekday, first run at/after the open.
+  // AI daily brief: once per ET weekday, premarket so it lands before the bell.
   const brief = await maybeGenerateDailyBrief();
 
   return NextResponse.json({ ok: true, results, brief });
@@ -76,13 +91,14 @@ export async function GET(req: Request) {
 
 /**
  * Generates and stores the AI daily brief on the first weekday run at/after
- * 09:30 ET, then posts it to Telegram. Failures are logged but never break
- * the price/signal cron. No-ops without ANTHROPIC_API_KEY.
+ * 08:00 ET (premarket, so Dad reads it before the open), then posts it to
+ * Telegram. Failures are logged but never break the price/signal cron.
+ * No-ops without ANTHROPIC_API_KEY.
  */
 async function maybeGenerateDailyBrief(): Promise<boolean> {
   if (!process.env.ANTHROPIC_API_KEY) return false;
   const ny = nyTime();
-  if (!ny.isWeekday || ny.minutes < MARKET_OPEN_MIN) return false;
+  if (!ny.isWeekday || ny.minutes < PREMARKET_BRIEF_MIN) return false;
   const existing = await getDailyBrief();
   if (existing && existing.date === ny.dateStr) return false;
   try {
@@ -110,6 +126,9 @@ async function checkSymbol(symbol: string): Promise<SymbolResult> {
 
   const signal = computeSignal(config, quote.price);
 
+  // --- Premarket gap alert (07:00–09:30 ET, once per symbol per day) ---
+  const gapAlert = await maybeSendGapAlert(symbol, quote, signal);
+
   // --- Daily market open / close summaries ---
   const summary = await maybeSendDailySummary(symbol, quote, signal);
 
@@ -131,7 +150,33 @@ async function checkSymbol(symbol: string): Promise<SymbolResult> {
     tier: signal.tierLabel,
     notified,
     summary,
+    gapAlert,
   };
+}
+
+/**
+ * Sends a Telegram alert when a watched stock is gapping beyond
+ * GAP_ALERT_PCT vs its previous close during the premarket window
+ * (07:00–09:30 ET). At most once per symbol per ET day. If the price feed
+ * doesn't move premarket, this simply never fires — no data is invented.
+ */
+async function maybeSendGapAlert(symbol: string, quote: Quote, signal: Signal): Promise<boolean> {
+  const ny = nyTime();
+  if (!ny.isWeekday) return false;
+  if (ny.minutes < PREMARKET_GAP_MIN || ny.minutes >= MARKET_OPEN_MIN) return false;
+  if (Math.abs(quote.changePct) < GAP_ALERT_PCT) return false;
+
+  const existing = await getDailyState(symbol);
+  const state: DailyState =
+    existing && existing.date === ny.dateStr
+      ? existing
+      : { date: ny.dateStr, openSent: false, closeSent: false };
+  if (state.gapSent) return false;
+
+  const sent = await sendTelegram(formatGapAlert(quote, signal));
+  state.gapSent = true;
+  await setDailyState(symbol, state);
+  return sent;
 }
 
 /**

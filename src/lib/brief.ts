@@ -3,7 +3,7 @@ import { getWatchlist, getConfig } from "./store";
 import { getQuote } from "./price";
 import { computeSignal } from "./signals";
 import { getCompanyNews } from "./news";
-import { nyTime } from "./market";
+import { nyTime, MARKET_OPEN_MIN } from "./market";
 import type { DailyBrief, AssetBrief } from "./types";
 
 /**
@@ -112,6 +112,8 @@ export async function generateDailyBrief(): Promise<DailyBrief> {
     throw new Error("No live market data available for any watched symbol — brief not generated.");
   }
 
+  const ny = nyTime();
+  const premarket = ny.minutes < MARKET_OPEN_MIN;
   const client = new Anthropic();
   const response = await client.messages.create({
     model: BRIEF_MODEL,
@@ -121,7 +123,9 @@ export async function generateDailyBrief(): Promise<DailyBrief> {
     messages: [
       {
         role: "user",
-        content: `Today's data (real, fetched just now):\n${JSON.stringify(inputs, null, 2)}\n\nWrite today's brief.`,
+        content: `Today's data (real, fetched just now${
+          premarket ? ", PREMARKET — prices/changes are pre-open prints and may be thin" : ""
+        }):\n${JSON.stringify(inputs, null, 2)}\n\nWrite today's brief.`,
       },
     ],
     output_config: { format: { type: "json_schema", schema: BRIEF_SCHEMA } },
@@ -134,7 +138,7 @@ export async function generateDailyBrief(): Promise<DailyBrief> {
   const parsed = JSON.parse(text) as BriefOutput;
 
   return {
-    date: nyTime().dateStr,
+    date: ny.dateStr,
     generatedAt: new Date().toISOString(),
     model: BRIEF_MODEL,
     marketSummary: parsed.marketSummary,

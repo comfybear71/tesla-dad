@@ -186,11 +186,13 @@ export async function setLastSignalKey(symbol: string, key: string): Promise<voi
   await set(keyFor("lastSignalKey", symbol), key);
 }
 
-/** Tracks whether the open/close Telegram summaries have been sent for a given ET day. */
+/** Tracks per-ET-day Telegram sends: open/close summaries + premarket gap alert. */
 export interface DailyState {
   date: string; // YYYY-MM-DD in ET
   openSent: boolean;
   closeSent: boolean;
+  /** Premarket gap alert sent today (optional: absent on records from older versions). */
+  gapSent?: boolean;
 }
 
 export async function getDailyState(symbol: string): Promise<DailyState | null> {
