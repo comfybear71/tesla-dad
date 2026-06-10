@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
-import type { Config, Trade, PriceSnapshot, DailyBrief } from "./types";
+import type { Config, Trade, PriceSnapshot, DailyBrief, DeskNote } from "./types";
 import { DEFAULT_CONFIG } from "./defaults";
 
 /**
@@ -213,6 +213,21 @@ export async function getDailyBrief(): Promise<DailyBrief | null> {
 
 export async function saveDailyBrief(brief: DailyBrief): Promise<void> {
   await set(BRIEF_KEY, brief);
+}
+
+// ---------- Desk notes (owner observations via the Telegram bot) ----------
+
+const NOTES_KEY = `${PREFIX}:notes`;
+const MAX_NOTES = 100;
+
+export async function getDeskNotes(): Promise<DeskNote[]> {
+  return (await get<DeskNote[]>(NOTES_KEY)) ?? [];
+}
+
+export async function addDeskNote(note: DeskNote): Promise<void> {
+  const notes = await getDeskNotes();
+  notes.unshift(note);
+  await set(NOTES_KEY, notes.slice(0, MAX_NOTES));
 }
 
 export const storageMode = useKv ? "vercel-kv" : "file";

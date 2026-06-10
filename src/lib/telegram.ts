@@ -19,33 +19,39 @@ import type { Signal, Quote } from "./types";
  * configured or every send failed.
  */
 export async function sendTelegram(text: string): Promise<boolean> {
+  const chatIds = telegramChatIds();
+  if (chatIds.length === 0) return false;
+  const results = await Promise.all(chatIds.map((chatId) => sendTelegramTo(chatId, text)));
+  return results.some(Boolean);
+}
+
+/** Send to a single chat (used by the webhook to reply to whoever messaged). */
+export async function sendTelegramTo(chatId: string | number, text: string): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatIds = (process.env.TELEGRAM_CHAT_ID ?? "")
+  if (!token) return false;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** The configured recipient list (comma-separated TELEGRAM_CHAT_ID). */
+export function telegramChatIds(): string[] {
+  return (process.env.TELEGRAM_CHAT_ID ?? "")
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean);
-  if (!token || chatIds.length === 0) return false;
-
-  const results = await Promise.all(
-    chatIds.map(async (chatId) => {
-      try {
-        const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text,
-            parse_mode: "HTML",
-            disable_web_page_preview: true,
-          }),
-        });
-        return res.ok;
-      } catch {
-        return false;
-      }
-    }),
-  );
-  return results.some(Boolean);
 }
 
 const ICON: Record<Signal["action"], string> = {
