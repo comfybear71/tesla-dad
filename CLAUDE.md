@@ -106,6 +106,9 @@ each logged trade**. Defaults (editable in Settings):
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Vercel KV persistence | Prod |
 | `ANTHROPIC_API_KEY` | AI daily brief (News page + Telegram) | For the brief |
 | `BRIEF_MODEL` | Override brief model (default `claude-opus-4-8`) | Optional |
+| `GAP_ALERT_PCT` | Premarket gap alert threshold in % (default 3) | Optional |
+| `GROQ_API_KEY` / `OPENAI_API_KEY` | Whisper transcription of Telegram voice notes (Groq first, OpenAI fallback) | For voice notes |
+| `TELEGRAM_WEBHOOK_SECRET` | Verifies incoming Telegram webhook deliveries | Recommended with webhook |
 | `CRON_SECRET` | Protect the cron endpoint | Optional |
 
 ## File structure convention (ecosystem)

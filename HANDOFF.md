@@ -12,47 +12,39 @@ Telegram alerts. Real data only — no fakes.
 - **Repo:** `comfybear71/tesla-dad`
 - **Production branch:** `master` (protected — never push directly; PR + squash)
 - **Live URL:** https://tesla-dad.vercel.app
-- **Env vars set:** `FINNHUB_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`,
-  Upstash Redis (`KV_REST_API_*`). Released tags: `v0.1.0`, `v0.1.2`.
+- **Env vars set:** `FINNHUB_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+  (now two ids: owner + Dad), Upstash Redis (`KV_REST_API_*`), `ANTHROPIC_API_KEY`.
+  Latest release: `v0.3.0-2026-06-10`.
 - **Vercel gotcha (resolved):** project was first imported when the repo was
   empty, so Framework Preset locked to "Other" → every route 404'd despite green
   builds. Fix: set Framework Preset = **Next.js** + one fresh deploy.
-
-## In review (branch `claude/app-ui-improvements-vw5khx`, 2026-06-09)
-
-Pushed but NOT yet merged — verify on the Vercel preview before merging:
-
-- **Multi-asset watchlist** (owner-requested 2026-06-09): track any ticker with
-  a real feed alongside TSLA (NVDA works now; SpaceX/Anthropic/OpenAI addable
-  the day they list). Adding a ticker is validated against Finnhub — unlisted
-  companies are rejected honestly. Per-symbol config/trades/snapshots/baseline;
-  TSLA keeps its original Redis keys so **no prod data migration is needed**.
-  All APIs take `?symbol=`; cron loops the watchlist; Telegram names the symbol.
-  ⚠️ Cash is per-asset (a budget per stock) — see open decision 4.
-- **UI overhaul**: fixed the ladder baseline bug (label was drawn at 50%, not
-  the true zero point, so the needle could sit on the wrong side); dollar
-  trigger prices on the ladder; day low/high range bar; plain-English signal
-  card; symbol tabs on every page; mobile-friendly trade history; +/- stepper
-  inputs; day P&L on the portfolio card; pinch-zoom re-enabled.
-- **Market desk** (budju-style, owner-requested 2026-06-09): `/news` page with
-  real Finnhub headlines per symbol + an **AI daily brief** (Claude via
-  `@anthropic-ai/sdk`, structured JSON, `claude-opus-4-8`, override with
-  `BRIEF_MODEL`). Generated once per ET weekday by the existing cron on the
-  first run after 09:30 ET, stored in KV, posted to Telegram; manual refresh
-  button on the page. Context-only — never instructs trades. **Owner action:
-  add `ANTHROPIC_API_KEY` in Vercel to enable it.**
 
 ## What's built
 
 - Mobile-first **Next.js 14 PWA** with Tesla-style monochrome UI (installable
   via "Add to Home Screen").
-- **Dashboard** (`/`): live price, BUY/SELL/HOLD signal card, visual tier
-  ladder with live needle, portfolio summary. Shows an honest "live price
-  unavailable" state when no data source is connected.
-- **Trades** (`/trades`): price chart with buy/sell markers, log-a-trade form
-  (pre-fills from a signal), full history table.
-- **Settings** (`/settings`): edit baseline, holdings, CMC fees, all 3 tiers;
-  "set baseline to current price"; "send test Telegram".
+- **Multi-asset watchlist** (v0.3.0): track any real-feed ticker alongside TSLA
+  (adds validated against Finnhub — unlisted names like SpaceX rejected
+  honestly). Per-symbol config/baseline/tiers/trades/snapshots; TSLA keeps its
+  original Redis keys (no prod migration). All APIs take `?symbol=`.
+  ⚠️ Cash is per-asset — see open decision 4.
+- **Dashboard** (`/`): live price, day-range bar, BUY/SELL/HOLD signal card in
+  plain English, tier ladder with dollar trigger prices + true-zero baseline,
+  portfolio with day P&L. Honest "unavailable" state when no data source.
+- **Market desk** (`/news`, v0.3.0): real Finnhub headlines per symbol + AI
+  daily brief (Claude `claude-opus-4-8` via `@anthropic-ai/sdk`, structured
+  JSON, `BRIEF_MODEL` override). Generated once per ET weekday by the cron
+  premarket (≥ 08:00 ET) and posted to Telegram; manual refresh on the page.
+  Context-only — never instructs trades.
+- **Premarket gap alerts**: 07:00–09:30 ET, Telegram alert when a watched stock
+  gaps beyond ±`GAP_ALERT_PCT` (default 3%) vs prev close, once/symbol/day.
+- **Trades** (`/trades`): price chart with buy/sell markers + baseline line,
+  log-a-trade form (pre-fills from a signal), mobile-friendly history list.
+- **Settings** (`/settings`): watchlist add/remove, per-symbol baseline,
+  holdings, CMC fees, all 3 tiers (stepper inputs); "set baseline to current
+  price"; "send test Telegram".
+- **Telegram**: signal alerts, open/close summaries, gap alerts and the brief
+  fan out to every chat id in `TELEGRAM_CHAT_ID` (comma-separated; Dad added).
 - **Signal engine** (`lib/signals.ts`): 3-tier ladder, picks most extreme tier,
   enforces $1,000 CMC minimum + fees. Baseline resets to trade price on each log.
 - **Price feed** (`lib/price.ts`): Finnhub → Alpha Vantage. **No mock fallback.**
@@ -112,10 +104,17 @@ Pushed but NOT yet merged — verify on the Vercel preview before merging:
   set to Next.js → **went live** at tesla-dad.vercel.app with real Finnhub data;
   Telegram confirmed working. Added **daily open/close Telegram summaries**
   (PR #4). Homepage polls live price every 30s while open.
-- **2026-06-09** — Big feature session on branch `claude/app-ui-improvements-vw5khx`
-  (see "In review" above): multi-asset watchlist backend + UI (owner explicitly
-  authorized extending to new symbols; `signals.ts` math untouched), full UI
-  overhaul incl. the ladder baseline-position bug fix, and the budju-style
-  market desk (real news feed + AI daily brief). Build + typecheck green;
-  endpoints smoke-tested locally (watchlist CRUD, honest 503s without keys).
-  Next: owner reviews Vercel preview, adds `ANTHROPIC_API_KEY`, merges via PR.
+- **2026-06-09** — Big feature session on branch `claude/app-ui-improvements-vw5khx`:
+  multi-asset watchlist backend + UI (owner explicitly authorized extending to
+  new symbols; `signals.ts` math untouched), full UI overhaul incl. the ladder
+  baseline-position bug fix, and the budju-style market desk (real news feed +
+  AI daily brief). Merged as PR #5 → released **v0.3.0-2026-06-10**, deployed,
+  verified live (`/api/watchlist`, `/news` 200).
+- **2026-06-10** — **Multi-recipient Telegram** (PR #6, merged): comma-separated
+  `TELEGRAM_CHAT_ID`; owner added Dad's chat id (1768033255). **Premarket
+  pipeline** (this PR, inspired by Humbled Trader's Claude+TradingView video):
+  gap alert 07:00–09:30 ET at ±`GAP_ALERT_PCT` (default 3%, once/symbol/day)
+  and the AI brief moved from ≥ 09:30 to ≥ 08:00 ET with a premarket data note
+  in the prompt. Idea parked deliberately: IBKR-style order automation from the
+  video is out of scope (signal-only rule). Candidate next: backtest the tier
+  ladder on historical candles to tune percentages.

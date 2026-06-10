@@ -9,6 +9,10 @@
 
 export const MARKET_OPEN_MIN = 9 * 60 + 30; // 09:30 ET
 export const MARKET_CLOSE_MIN = 16 * 60; // 16:00 ET
+/** Premarket gap alerts fire between here and the open. */
+export const PREMARKET_GAP_MIN = 7 * 60; // 07:00 ET
+/** The AI daily brief generates from here, so it lands before the bell. */
+export const PREMARKET_BRIEF_MIN = 8 * 60; // 08:00 ET
 
 export interface NyTime {
   /** YYYY-MM-DD in ET, used as a per-day key. */

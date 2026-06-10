@@ -1,9 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { getWatchlist, getConfig } from "./store";
+import { getWatchlist, getConfig, getDeskNotes } from "./store";
 import { getQuote } from "./price";
 import { computeSignal } from "./signals";
 import { getCompanyNews } from "./news";
-import { nyTime } from "./market";
+import { nyTime, MARKET_OPEN_MIN } from "./market";
 import type { DailyBrief, AssetBrief } from "./types";
 
 /**
@@ -25,6 +25,7 @@ Rules:
 - Be honest and sober: if news is thin, signals are mixed, or nothing happened, say exactly that and keep it short.
 - NEVER tell the reader to place, time, or size a trade. The app's tier ladder produces the buy/sell signals; you provide context only.
 - Base every statement ONLY on the data provided in the user message. Never invent prices, events, or news.
+- ownerNotes are the family's own recent observations (voice memos / texts). Weigh them as human context — attribute them ("your note about ..."), connect them to the data where relevant, and respectfully disagree if the data doesn't support them. They are NEVER trade instructions.
 - "watchFor" is one concrete thing to keep an eye on (an upcoming event, a price area, a specific risk).
 - This is not financial advice; do not include a disclaimer, the app shows one.`;
 
@@ -112,6 +113,15 @@ export async function generateDailyBrief(): Promise<DailyBrief> {
     throw new Error("No live market data available for any watched symbol — brief not generated.");
   }
 
+  // Owner observations from the last 48h (Telegram voice memos / /note texts).
+  const cutoff = Date.now() - 48 * 3_600_000;
+  const ownerNotes = (await getDeskNotes())
+    .filter((n) => new Date(n.ts).getTime() >= cutoff)
+    .slice(0, 10)
+    .map((n) => ({ at: n.ts, from: n.from, note: n.text }));
+
+  const ny = nyTime();
+  const premarket = ny.minutes < MARKET_OPEN_MIN;
   const client = new Anthropic();
   const response = await client.messages.create({
     model: BRIEF_MODEL,
@@ -121,7 +131,13 @@ export async function generateDailyBrief(): Promise<DailyBrief> {
     messages: [
       {
         role: "user",
-        content: `Today's data (real, fetched just now):\n${JSON.stringify(inputs, null, 2)}\n\nWrite today's brief.`,
+        content: `Today's data (real, fetched just now${
+          premarket ? ", PREMARKET — prices/changes are pre-open prints and may be thin" : ""
+        }):\n${JSON.stringify(inputs, null, 2)}\n\nownerNotes (last 48h, newest first):\n${JSON.stringify(
+          ownerNotes,
+          null,
+          2,
+        )}\n\nWrite today's brief.`,
       },
     ],
     output_config: { format: { type: "json_schema", schema: BRIEF_SCHEMA } },
@@ -134,7 +150,7 @@ export async function generateDailyBrief(): Promise<DailyBrief> {
   const parsed = JSON.parse(text) as BriefOutput;
 
   return {
-    date: nyTime().dateStr,
+    date: ny.dateStr,
     generatedAt: new Date().toISOString(),
     model: BRIEF_MODEL,
     marketSummary: parsed.marketSummary,

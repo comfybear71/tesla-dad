@@ -19,33 +19,39 @@ import type { Signal, Quote } from "./types";
  * configured or every send failed.
  */
 export async function sendTelegram(text: string): Promise<boolean> {
+  const chatIds = telegramChatIds();
+  if (chatIds.length === 0) return false;
+  const results = await Promise.all(chatIds.map((chatId) => sendTelegramTo(chatId, text)));
+  return results.some(Boolean);
+}
+
+/** Send to a single chat (used by the webhook to reply to whoever messaged). */
+export async function sendTelegramTo(chatId: string | number, text: string): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatIds = (process.env.TELEGRAM_CHAT_ID ?? "")
+  if (!token) return false;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** The configured recipient list (comma-separated TELEGRAM_CHAT_ID). */
+export function telegramChatIds(): string[] {
+  return (process.env.TELEGRAM_CHAT_ID ?? "")
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean);
-  if (!token || chatIds.length === 0) return false;
-
-  const results = await Promise.all(
-    chatIds.map(async (chatId) => {
-      try {
-        const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text,
-            parse_mode: "HTML",
-            disable_web_page_preview: true,
-          }),
-        });
-        return res.ok;
-      } catch {
-        return false;
-      }
-    }),
-  );
-  return results.some(Boolean);
 }
 
 const ICON: Record<Signal["action"], string> = {
@@ -85,6 +91,29 @@ export function formatSignalMessage(signal: Signal, symbol: string): string {
 
 function signed(n: number, digits = 2): string {
   return `${n > 0 ? "+" : ""}${n.toFixed(digits)}`;
+}
+
+/**
+ * Premarket gap alert: a watched stock is trading well away from its previous
+ * close before the bell. Sent at most once per symbol per ET day.
+ */
+export function formatGapAlert(quote: Quote, signal: Signal): string {
+  const up = quote.changePct >= 0;
+  const lines = [
+    `⚡️ <b>${quote.symbol} — Premarket gap ${up ? "UP" : "DOWN"} ${signed(quote.changePct)}%</b>`,
+    ``,
+    `Trading at <b>$${quote.price.toFixed(2)}</b> vs prev close $${quote.prevClose.toFixed(2)}, before the open.`,
+    `Baseline: $${signal.baselinePrice.toFixed(2)} (${signed(signal.deviationPct)}% since)`,
+    ``,
+    `${ICON[signal.action]} ${
+      signal.action === "HOLD"
+        ? "No tier triggered yet — watch the open."
+        : `${signal.action}${signal.tierLabel ? ` (${signal.tierLabel})` : ""} signal active.`
+    }`,
+    ``,
+    `<i>Signal only — review before trading in CMC.</i>`,
+  ];
+  return lines.join("\n");
 }
 
 /**

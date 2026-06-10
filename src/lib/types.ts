@@ -111,6 +111,20 @@ export interface DailyBrief {
   assets: AssetBrief[];
 }
 
+/**
+ * An owner observation captured via the Telegram bot (voice memo transcribed
+ * with Whisper, or a /note text message). Fed into the daily brief as human
+ * context — never as a trade instruction.
+ */
+export interface DeskNote {
+  id: string;
+  ts: string;
+  /** First name of the sender (owner or Dad). */
+  from: string;
+  kind: "voice" | "text";
+  text: string;
+}
+
 export interface Quote {
   symbol: string;
   price: number;
