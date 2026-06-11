@@ -84,7 +84,9 @@ export async function GET(req: Request) {
   }
 
   // AI daily brief: once per ET weekday, premarket so it lands before the bell.
-  const brief = await maybeGenerateDailyBrief();
+  // `?brief=now` forces a one-off generation + Telegram send (testing / on demand).
+  const forceBrief = new URL(req.url).searchParams.get("brief") === "now";
+  const brief = await maybeGenerateDailyBrief(forceBrief);
 
   return NextResponse.json({ ok: true, results, brief });
 }
@@ -92,15 +94,18 @@ export async function GET(req: Request) {
 /**
  * Generates and stores the AI daily brief on the first weekday run at/after
  * 08:00 ET (premarket, so Dad reads it before the open), then posts it to
- * Telegram. Failures are logged but never break the price/signal cron.
+ * Telegram. `force` skips the schedule and once-per-day gates for an
+ * on-demand run. Failures are logged but never break the price/signal cron.
  * No-ops without ANTHROPIC_API_KEY.
  */
-async function maybeGenerateDailyBrief(): Promise<boolean> {
+async function maybeGenerateDailyBrief(force = false): Promise<boolean> {
   if (!process.env.ANTHROPIC_API_KEY) return false;
-  const ny = nyTime();
-  if (!ny.isWeekday || ny.minutes < PREMARKET_BRIEF_MIN) return false;
-  const existing = await getDailyBrief();
-  if (existing && existing.date === ny.dateStr) return false;
+  if (!force) {
+    const ny = nyTime();
+    if (!ny.isWeekday || ny.minutes < PREMARKET_BRIEF_MIN) return false;
+    const existing = await getDailyBrief();
+    if (existing && existing.date === ny.dateStr) return false;
+  }
   try {
     const brief = await generateDailyBrief();
     await saveDailyBrief(brief);
