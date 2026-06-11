@@ -206,6 +206,7 @@ export async function setDailyState(symbol: string, state: DailyState): Promise<
 // ---------- AI daily brief (one per ET market day, watchlist-wide) ----------
 
 const BRIEF_KEY = `${PREFIX}:brief`;
+const BRIEF_LOCK_KEY = `${PREFIX}:briefLock`;
 
 export async function getDailyBrief(): Promise<DailyBrief | null> {
   return get<DailyBrief>(BRIEF_KEY);
@@ -213,6 +214,19 @@ export async function getDailyBrief(): Promise<DailyBrief | null> {
 
 export async function saveDailyBrief(brief: DailyBrief): Promise<void> {
   await set(BRIEF_KEY, brief);
+}
+
+/**
+ * Cooldown lock so concurrent or rapid-fire brief runs (double-tapped
+ * ?brief=now, a forced run racing the scheduled cron, browser re-fetches)
+ * can't send duplicate Telegram posts. Returns true if the lock was acquired;
+ * false when another generation started within `cooldownMs`.
+ */
+export async function acquireBriefLock(cooldownMs: number): Promise<boolean> {
+  const lock = await get<string>(BRIEF_LOCK_KEY);
+  if (lock && Date.now() - new Date(lock).getTime() < cooldownMs) return false;
+  await set(BRIEF_LOCK_KEY, new Date().toISOString());
+  return true;
 }
 
 // ---------- Desk notes (owner observations via the Telegram bot) ----------
