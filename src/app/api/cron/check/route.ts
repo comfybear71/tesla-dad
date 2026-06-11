@@ -7,9 +7,11 @@ import {
   setLastSignalKey,
   getDailyState,
   setDailyState,
+  getDailyBrief,
+  saveDailyBrief,
+  acquireBriefLock,
   type DailyState,
 } from "@/lib/store";
-import { getDailyBrief, saveDailyBrief } from "@/lib/store";
 import { getQuote } from "@/lib/price";
 import { computeSignal, signalKey } from "@/lib/signals";
 import {
@@ -106,6 +108,9 @@ async function maybeGenerateDailyBrief(force = false): Promise<boolean> {
     const existing = await getDailyBrief();
     if (existing && existing.date === ny.dateStr) return false;
   }
+  // Cooldown: rapid-fire ?brief=now taps, browser re-fetches, or a forced run
+  // racing the scheduled cron must not produce duplicate Telegram posts.
+  if (!(await acquireBriefLock(5 * 60_000))) return false;
   try {
     const brief = await generateDailyBrief();
     await saveDailyBrief(brief);
