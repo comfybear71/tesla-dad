@@ -38,6 +38,15 @@ Telegram alerts. Real data only — no fakes.
   Context-only — never instructs trades.
 - **Premarket gap alerts**: 07:00–09:30 ET, Telegram alert when a watched stock
   gaps beyond ±`GAP_ALERT_PCT` (default 3%) vs prev close, once/symbol/day.
+- **Desk notes** (`/api/telegram/webhook`): the bot listens — voice memos are
+  transcribed with Whisper (Groq → OpenAI fallback) and `/note` texts captured;
+  last 48h of notes feed the daily brief as attributed human context (never
+  trade instructions). Webhook registered in prod with `TELEGRAM_WEBHOOK_SECRET`;
+  ⚠️ while the webhook is set, manual `getUpdates` no longer works (Telegram
+  rule — likely what broke budju's notes).
+- **Desk-style brief**: budju-Desk format — broad-market regime read (real
+  SPY/QQQ/USO quotes), per-asset sentiment with confidence %, week change from
+  stored snapshots, and the next ladder trigger levels as context.
 - **Trades** (`/trades`): price chart with buy/sell markers + baseline line,
   log-a-trade form (pre-fills from a signal), mobile-friendly history list.
 - **Settings** (`/settings`): watchlist add/remove, per-symbol baseline,
@@ -115,6 +124,11 @@ Telegram alerts. Real data only — no fakes.
   pipeline** (this PR, inspired by Humbled Trader's Claude+TradingView video):
   gap alert 07:00–09:30 ET at ±`GAP_ALERT_PCT` (default 3%, once/symbol/day)
   and the AI brief moved from ≥ 09:30 to ≥ 08:00 ET with a premarket data note
-  in the prompt. Idea parked deliberately: IBKR-style order automation from the
-  video is out of scope (signal-only rule). Candidate next: backtest the tier
-  ladder on historical candles to tune percentages.
+  in the prompt. Also in PR #7: **Telegram desk notes** (voice via Whisper +
+  `/note` texts → brief context, ported from budju). Merged + verified live:
+  owner's voice memo about Iran/Trump transcribed perfectly. Then upgraded the
+  brief to **budju-Desk format** (market regime via SPY/QQQ/USO, confidence %,
+  week changes, ladder trigger levels). Idea parked deliberately: IBKR-style
+  order automation from the video is out of scope (signal-only rule).
+  Candidate next: backtest the tier ladder on historical candles to tune
+  percentages.
