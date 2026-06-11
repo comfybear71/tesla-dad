@@ -4,11 +4,18 @@ import { useCallback, useEffect, useState } from "react";
 import { SymbolTabs } from "@/components/SymbolTabs";
 import { useWatchlist } from "@/lib/useWatchlist";
 import { timeAgo } from "@/lib/format";
-import type { DailyBrief, NewsItem, AssetBrief } from "@/lib/types";
+import type { DailyBrief, NewsItem, AssetBrief, MarketContext } from "@/lib/types";
 
 const SENTIMENT_STYLE: Record<AssetBrief["sentiment"], string> = {
   bullish: "bg-signal-buy/15 text-signal-buy",
   bearish: "bg-tesla-red/15 text-tesla-red",
+  neutral: "bg-white/10 text-white/60",
+  mixed: "bg-amber-400/15 text-amber-300",
+};
+
+const REGIME_STYLE: Record<MarketContext["regime"], string> = {
+  "risk-on": "bg-signal-buy/15 text-signal-buy",
+  "risk-off": "bg-tesla-red/15 text-tesla-red",
   neutral: "bg-white/10 text-white/60",
   mixed: "bg-amber-400/15 text-amber-300",
 };
@@ -95,6 +102,19 @@ export default function NewsPage() {
 
         {brief ? (
           <>
+            {brief.marketContext && (
+              <div className="mb-4 rounded-xl border border-white/10 bg-black/30 p-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="label">Market</span>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${REGIME_STYLE[brief.marketContext.regime]}`}
+                  >
+                    {brief.marketContext.regime}
+                  </span>
+                </div>
+                <p className="text-sm leading-relaxed text-white/70">{brief.marketContext.summary}</p>
+              </div>
+            )}
             <p className="text-sm leading-relaxed text-white/85">{brief.marketSummary}</p>
             <div className="mt-4 flex flex-col gap-3">
               {brief.assets.map((a) => (
@@ -103,6 +123,7 @@ export default function NewsPage() {
                     <span className="text-sm font-semibold tracking-wide">{a.symbol}</span>
                     <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${SENTIMENT_STYLE[a.sentiment]}`}>
                       {a.sentiment}
+                      {a.confidence != null && ` · ${a.confidence}%`}
                     </span>
                   </div>
                   <p className="text-sm leading-relaxed text-white/70">{a.summary}</p>

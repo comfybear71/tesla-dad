@@ -95,10 +95,19 @@ export interface NewsItem {
 export interface AssetBrief {
   symbol: string;
   sentiment: "bullish" | "bearish" | "neutral" | "mixed";
+  /** Conviction in the read, 0–100. Optional: absent on briefs from older versions. */
+  confidence?: number;
   /** Plain-English 2-3 sentence read on the asset. */
   summary: string;
   /** One concrete thing to keep an eye on. */
   watchFor: string;
+}
+
+/** Broad-market read at the top of the daily brief (budju Desk style). */
+export interface MarketContext {
+  regime: "risk-on" | "risk-off" | "neutral" | "mixed";
+  /** 2-3 sentences on the broad tape: indexes, oil, macro tone. */
+  summary: string;
 }
 
 /** AI-generated morning brief across the whole watchlist. Context only — never a trade instruction. */
@@ -107,6 +116,8 @@ export interface DailyBrief {
   date: string;
   generatedAt: string;
   model: string;
+  /** Optional: absent on briefs stored by older versions. */
+  marketContext?: MarketContext;
   marketSummary: string;
   assets: AssetBrief[];
 }
