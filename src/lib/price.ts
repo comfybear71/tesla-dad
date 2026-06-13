@@ -66,18 +66,32 @@ async function fromFinnhub(symbol: string, key: string): Promise<Quote> {
     pc: number;
   };
   if (!d.c) throw new Error("empty quote");
+  // A freshly-listed ticker (e.g. an IPO's first session) can return null for
+  // change/changePct/prevClose because there's no prior close yet. Coerce to
+  // safe numbers so the UI never receives a null where it expects a number —
+  // we derive change from prevClose when we can, otherwise report 0 (flat),
+  // which is honest: there is no prior close to measure against.
+  const price = d.c;
+  const prevClose = num(d.pc);
+  const change = num(d.d, prevClose > 0 ? price - prevClose : 0);
+  const changePct = num(d.dp, prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0);
   return {
     symbol,
-    price: d.c,
-    change: d.d,
-    changePct: d.dp,
-    high: d.h,
-    low: d.l,
-    open: d.o,
-    prevClose: d.pc,
+    price,
+    change,
+    changePct,
+    high: num(d.h, price),
+    low: num(d.l, price),
+    open: num(d.o, price),
+    prevClose,
     source: "finnhub",
     ts: new Date().toISOString(),
   };
+}
+
+/** Coerce a possibly-null/NaN feed value to a finite number (fallback default). */
+function num(v: number | null | undefined, fallback = 0): number {
+  return Number.isFinite(v) ? (v as number) : fallback;
 }
 
 async function fromAlphaVantage(symbol: string, key: string): Promise<Quote> {

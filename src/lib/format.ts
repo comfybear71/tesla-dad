@@ -1,5 +1,6 @@
-export function usd(n: number, digits = 2): string {
-  return n.toLocaleString("en-US", {
+export function usd(n: number | null | undefined, digits = 2): string {
+  const v = Number.isFinite(n) ? (n as number) : 0;
+  return v.toLocaleString("en-US", {
     style: "currency",
     currency: "USD",
     minimumFractionDigits: digits,
@@ -7,8 +8,8 @@ export function usd(n: number, digits = 2): string {
   });
 }
 
-export function pct(n: number): string {
-  const v = Number(n.toFixed(2));
+export function pct(n: number | null | undefined): string {
+  const v = Number(((Number.isFinite(n) ? (n as number) : 0)).toFixed(2));
   return `${v > 0 ? "+" : ""}${v}%`;
 }
 
